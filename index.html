@@ -4,24 +4,14 @@
     <meta charset="UTF-8">
     <title>Record With Audio</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
-    <style>
-      .stop {
-        position: absolute;
-        top: 45px;
-        z-index: 9999;
-      }
-      .start {
-        position: absolute;
-        top: 0px;
-        z-index: 9999; 
-      }
-    </style>
   </head>
   <body>
-   
+    
+    <video controls autoplay></video>
+    <ul id="sources"></ul>
+
     <button class="btn btn-primary stop" id="stoprecording">STOP RECORDING</button>
     <button class="btn btn-primary start" id="startrecording">START RECORDING</button>
-    <!--<video id="preview-screen" controls autoplay height="720" width="1280"></video>-->
     
     <!-- recommended -->
     <script src="https://cdn.webrtc-experiment.com/RecordRTC.js"></script>
@@ -29,112 +19,147 @@
     <script src="https://cdn.WebRTC-Experiment.com/getScreenId.js"></script>
     <script>
 
-      window.$ = window.jQuery = require("jquery");
+        window.$ = window.jQuery = require("jquery");
 
-      const {
-          desktopCapturer
-      } = require('electron');
+        const {
+            desktopCapturer
+        } = require('electron');
 
-      desktopCapturer.getSources({ types:['window', 'screen'] })
-        .then( sources => {
-            console.log(sources);
+        const video = document.querySelector("video");
+
+        desktopCapturer.getSources({
+                types: ['window', 'screen']
+            })
+            .then(sources => {
+                console.log(sources);
+                sources.forEach(source => {
+
+                    $('#sources').append('<li class="select_source" data-screenid="' + source.id + '"><img src="' + source.thumbnail.toDataURL('image/png') + '"/>Name' + source.name + ' id: ' + source.id + '</li>');
+
+                });
+
+            });
+
+        const ipc = require("electron").ipcRenderer;
+
+
+        $('body').on('click', ".select_source", function(evt) {
+
+            evt.preventDefault();
+
+            var id = $(this).data('screenid');
+
+            OnLoadedMetaData(id);
+
         });
 
-      const ipc = require("electron").ipcRenderer;
+        function captureScreen(id, cb) {
 
-      function captureScreen(cb) {
-          getScreenId(function(error, sourceId, screen_constraints) {
-            
-            console.log('screen_constraints',screen_constraints);
-              navigator.mediaDevices.getUserMedia(screen_constraints).then(cb).catch(function(error) {
-                  console.error('getScreenId error', error);
-                  alert('Failed to capture your screen. Please check browser console logs for further information.');
-              });
-          }, true);
-      }
+            getScreenId(function(error, sourceId, screen_constraints) {
 
-      function captureAudio(cb) {
-          navigator.mediaDevices.getUserMedia({
-              audio: true,
-              video: false
-          }).then(cb);
-      }
+                screen_constraints.video.mandatory.chromeMediaSourceId = id; // Set your window id here 
+                delete screen_constraints.video.mandatory.maxWidth;
+                delete screen_constraints.video.mandatory.maxHeight;
+                console.log(screen_constraints);
+                navigator.mediaDevices.getUserMedia(screen_constraints).then(cb).catch(function(error) {
+                    console.error('getScreenId error', error);
+                    alert('Failed to capture your screen. Please check browser console logs for further information.');
+                });
+            }, true);
 
-      var recorder = '';
-      var screenRec = '';
-      var micRec = '';
+        }
 
-      function OnLoadedMetaData() {
-          captureScreen(function(screen) {
+        function captureAudio(cb) {
+            navigator.mediaDevices.getUserMedia({
+                audio: true,
+                video: false
+            }).then(cb);
+        }
 
-              captureAudio(function(mic) {
+        var recorder = '';
+        var screenRec = '';
+        var micRec = '';
 
-                  screen.width = window.screen.width;
-                  screen.height = window.screen.height;
-                  screen.fullcanvas = true;
+        function OnLoadedMetaData(id) {
+            captureScreen(id, function(stream) {
+                video.srcObject = stream;
 
-                  recorder = RecordRTC([screen, mic], {
-                      type: 'video',
-                      mimeType: 'video/webm'
-                  });
+                video.addEventListener("loadedmetadata", function(e) {
 
-                  screenRec = screen;
-                  micRec = mic;
+                    let video_width = this.videoWidth;
+                    let video_height = this.videoHeight;
 
-                  //Start recording
-                  recorder.startRecording();
+                    captureAudio(function(mic) {
 
-              });
+                        recorder = RecordRTC([stream, mic], {
+                            type: 'video',
+                            mimeType: 'video/mp4',
+                            video: {
+                                width: video_width,
+                                height: video_height
+                            }
+                        });
+                        screenRec = stream;
+                        micRec = mic;
 
-              addStreamStopListener(screen, function() {
-                  btnStopRecording.click();
-              });
-          });
-      }
+                        //Start recording
+                        recorder.startRecording();
 
-      var btnStopRecording = document.getElementById('stoprecording');
-      btnStopRecording.onclick = function() {
-          this.disabled = true;
+                    });
 
-          recorder.stopRecording(function() {
-              var blob = recorder.getBlob();
-              screenRec.getTracks().concat(micRec.getTracks()).forEach(function(track) {
-                  track.stop();
-              });
-              invokeSaveAsDialog(blob, 'video.webm');
-          });
-      };
+                }, false);
 
-      var btnStartRecording = document.getElementById('startrecording');
-      btnStartRecording.onclick = function() {
-          this.disabled = true;
+                addStreamStopListener(stream, function() {
+                    btnStopRecording.click();
+                });
 
-          OnLoadedMetaData();
+            });
 
-      };
+        }
 
-      function addStreamStopListener(stream, callback) {
-          var streamEndedEvent = 'ended';
-          if ('oninactive' in stream) {
-              streamEndedEvent = 'inactive';
-          }
-          stream.addEventListener(streamEndedEvent, function() {
-              callback();
-              callback = function() {};
-          }, false);
-          stream.getAudioTracks().forEach(function(track) {
-              track.addEventListener(streamEndedEvent, function() {
-                  callback();
-                  callback = function() {};
-              }, false);
-          });
-          stream.getVideoTracks().forEach(function(track) {
-              track.addEventListener(streamEndedEvent, function() {
-                  callback();
-                  callback = function() {};
-              }, false);
-          });
-      }
+        var btnStopRecording = document.getElementById('stoprecording');
+        btnStopRecording.onclick = function() {
+            this.disabled = true;
+
+            recorder.stopRecording(function() {
+                var blob = recorder.getBlob();
+                screenRec.getTracks().concat(micRec.getTracks()).forEach(function(track) {
+                    track.stop();
+                });
+                invokeSaveAsDialog(blob, 'video.mp4');
+            });
+        };
+
+        var btnStartRecording = document.getElementById('startrecording');
+        btnStartRecording.onclick = function() {
+            this.disabled = true;
+
+            OnLoadedMetaData();
+
+        };
+
+        function addStreamStopListener(stream, callback) {
+            var streamEndedEvent = 'ended';
+            if ('oninactive' in stream) {
+                streamEndedEvent = 'inactive';
+            }
+            stream.addEventListener(streamEndedEvent, function() {
+                callback();
+                callback = function() {};
+            }, false);
+            stream.getAudioTracks().forEach(function(track) {
+                track.addEventListener(streamEndedEvent, function() {
+                    callback();
+                    callback = function() {};
+                }, false);
+            });
+            stream.getVideoTracks().forEach(function(track) {
+                track.addEventListener(streamEndedEvent, function() {
+                    callback();
+                    callback = function() {};
+                }, false);
+            });
+        }
     </script>
-  </body>
+</body>
 </html>
