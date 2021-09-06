@@ -1,16 +1,16 @@
 const { app, ipcMain, BrowserWindow } = require('electron')
 const path = require('path')
 
-function createWindow () {
+function createWindow() {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 400,
     height: 400,
     webPreferences: {
-        webSecurity: true,
-			nodeIntegration: true,
-			enableRemoteModule: true,
-			contextIsolation: false
+      webSecurity: true,
+      nodeIntegration: true,
+      enableRemoteModule: true,
+      contextIsolation: false
     }
   })
 
