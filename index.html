@@ -4,13 +4,21 @@
     <meta charset="UTF-8">
     <title>Record With Audio</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
-  </head>
+    <style>
+        .media:hover {
+            cursor: pointer;
+        }
+    </style>
+</head>
   <body>
     
-    <video controls autoplay></video>
-    <ul id="sources"></ul>
+    <h4>Select screen to start record</h4>
+    <div id="sources"></div>
 
-    <button class="btn btn-primary stop" id="stoprecording">STOP RECORDING</button>
+    <h4>Video will display below</h4>
+    <video controls autoplay></video>
+
+    <button class="btn btn-primary stop" id="stoprecording">Stop Recording</button>
     
     <!-- recommended -->
     <script src="https://cdn.webrtc-experiment.com/RecordRTC.js"></script>
@@ -35,7 +43,11 @@
                 console.log(sources);
                 sources.forEach(source => {
 
-                    $('#sources').append('<li class="select_source" data-screenid="' + source.id + '"><img src="' + source.thumbnail.toDataURL('image/png') + '"/>Name' + source.name + ' id: ' + source.id + '</li>');
+                    $('#sources').append('<div class="media select_source" data-screenid="' + source.id + '">' + 
+                    '<img class="mr-3" src="' + source.thumbnail.toDataURL('image/png') + '" alt="Generic placeholder image">' + 
+                    '<div class="media-body">' + 
+                    '<h5 class="mt-0">' + source.name + '</h5>id: ' + source.id + '</div>' + 
+                    '</div>');
 
                 });
 
