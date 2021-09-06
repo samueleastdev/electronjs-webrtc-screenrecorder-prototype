@@ -11,7 +11,6 @@
     <ul id="sources"></ul>
 
     <button class="btn btn-primary stop" id="stoprecording">STOP RECORDING</button>
-    <button class="btn btn-primary start" id="startrecording">START RECORDING</button>
     
     <!-- recommended -->
     <script src="https://cdn.webrtc-experiment.com/RecordRTC.js"></script>
@@ -24,6 +23,8 @@
         const {
             desktopCapturer
         } = require('electron');
+
+        const ipc = require("electron").ipcRenderer;
 
         const video = document.querySelector("video");
 
@@ -40,8 +41,6 @@
 
             });
 
-        const ipc = require("electron").ipcRenderer;
-
 
         $('body').on('click', ".select_source", function(evt) {
 
@@ -55,17 +54,37 @@
 
         function captureScreen(id, cb) {
 
-            getScreenId(function(error, sourceId, screen_constraints) {
+            var videoConstraints = {
+                video: {
+                    mandatory: {
+                        chromeMediaSource: 'screen',
+                        chromeMediaSourceId: id,
+                        //minWidth: 1280,
+                        //minHeight: 720,
+                        //maxWidth: 1920,
+                        //maxHeight: 1080
+                    },
+                    optional: []
+                }
+            };
+
+            navigator.mediaDevices.getUserMedia(videoConstraints).then(cb).catch(function(error) {
+                console.error('getScreenId error', error);
+                alert('Failed to capture your screen. Please check browser console logs for further information.');
+            });
+
+            /*getScreenId(function(error, sourceId, screen_constraints) {
 
                 screen_constraints.video.mandatory.chromeMediaSourceId = id; // Set your window id here 
                 delete screen_constraints.video.mandatory.maxWidth;
                 delete screen_constraints.video.mandatory.maxHeight;
+
                 console.log(screen_constraints);
                 navigator.mediaDevices.getUserMedia(screen_constraints).then(cb).catch(function(error) {
                     console.error('getScreenId error', error);
                     alert('Failed to capture your screen. Please check browser console logs for further information.');
                 });
-            }, true);
+            }, true);*/
 
         }
 
@@ -82,8 +101,9 @@
 
         function OnLoadedMetaData(id) {
             captureScreen(id, function(stream) {
-                video.srcObject = stream;
 
+                video.srcObject = stream;
+                
                 video.addEventListener("loadedmetadata", function(e) {
 
                     let video_width = this.videoWidth;
@@ -92,8 +112,10 @@
                     captureAudio(function(mic) {
 
                         recorder = RecordRTC([stream, mic], {
+                            bitsPerSecond: 8000000000,
+                            frameInterval: 90,
                             type: 'video',
-                            mimeType: 'video/mp4',
+                            //mimeType: 'video/mp4',
                             video: {
                                 width: video_width,
                                 height: video_height
@@ -126,16 +148,8 @@
                 screenRec.getTracks().concat(micRec.getTracks()).forEach(function(track) {
                     track.stop();
                 });
-                invokeSaveAsDialog(blob, 'video.mp4');
+                invokeSaveAsDialog(blob, 'video.webm');
             });
-        };
-
-        var btnStartRecording = document.getElementById('startrecording');
-        btnStartRecording.onclick = function() {
-            this.disabled = true;
-
-            OnLoadedMetaData();
-
         };
 
         function addStreamStopListener(stream, callback) {
